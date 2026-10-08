@@ -1,0 +1,4 @@
+.codegraph/
+.reasonix/
+node_modules/
+*.log

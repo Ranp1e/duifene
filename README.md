@@ -1,62 +1,54 @@
-# 对分易自动答题助手 v5.2
+# 对分易自动答题助手 v7
 
 对分易（duifene.com）DeepSeek AI 自动答题 Tampermonkey 脚本。
 
 ## ✨ 功能
 
-- 🤖 DeepSeek v4-pro
+- 🤖 DeepSeek（默认 `deepseek-chat`），答案缓存（上限 500 条）
 - 📋 单选/多选/判断/填空/问答题
-- 🔄 逐题自动切换
-- 🖥️ 悬浮终端 + 答题卡
-- 📤 自动提交+返回列表
+- 💾 问答题走真实保存接口（`redit_essay_question`），以服务器响应"保存成功"为准，失败自动重试并暂停
+- ⏭️ 自动跳过服务器已有作答记录的题目（可关）
+- ✅ 选项点击后验证选中态；逐题切换等待页面真正切题
+- 🖥️ 悬浮球 + 单面板 UI（Shadow DOM 隔离，浅色主题）：运行 / 日志 / 设置 / 关于
+- 📊 答题卡（点击跳题）、进度条、API 次数与 token 统计
+- ⌨️ 快捷键：Alt+Q 开始/暂停，Alt+W 停止
+- 🔒 多标签页互斥锁，避免并发答题
+- 📤 自动提交（弹窗二次确认）+ 返回列表
 
-## ⚙️ 配置
+## ⚙️ 配置（设置 Tab）
 
 | 设置 | 默认值 |
 |------|--------|
 | API Key | 必填 |
-| Model | `deepseek-v4-pro` |
-| 题间延时 | `1200ms` |
+| 模型 | `deepseek-chat` |
+| 题间延时 | `2000ms` |
+| 跳过已作答题目 | 开启 |
 | 自动提交 | 关闭 |
 | 返回列表 | 开启 |
+| 快捷键 | 开启 |
 
+支持配置导入/导出、恢复默认、一键测试 API。
 获取 Key：https://platform.deepseek.com → API Keys
 
 ## 🔄 更新日志
 
-### v5.2.0 (2026-06-10)
-- 🔥 **fillBlank 精确定位 + FillAnswer()** — 截图发现填空 `<input>` 的 `onchange="FillAnswer(this)"` 是页面真正的保存入口
-  - 搜索范围从 `#divSubjectItem` 任意 input 改为精确 `.subject-fillblank input`（避免了 file upload/textarea 干扰）
-  - 写入 value 后**直接调用页面 `FillAnswer(input)` 函数**，绕过所有事件系统
-  - 辅助发送 `input/change/keyup` 事件做视觉反馈
-  - 保留 jQuery `triggerHandler('change')` 兜底
+### v7.0.1 (2026-10-08)
+- 🐛 修复 UEditor 写入异常：切题后 `UE.instants` 残留上一题已销毁的实例，改为逐个尝试直到写入成功（不影响保存，仅影响编辑器内文字显示）
 
-### v5.1.0 (2026-06-10)
-- 🔥 **fillBlank 事件顺序修正** — v5.0 先写 value 再发 keydown，框架在 keydown 时看到 value 已经是最终值，input 事件时 delta=0，字符计数不触发
-  - 改为：`focus → keydown(旧值) → 写value → InputEvent('input', {inputType:'insertText'}) → keyup → change → blur`
-  - keydown 在 value 改变**之前**（与真实打字一致）
-  - 用 `InputEvent` 替代 `Event('input')`，携带 `inputType:'insertText'` + `data` 更真实
-  - KeyboardEvent 补充 `key:'a', code:'KeyA', keyCode:65, which:65` 完整属性
-  - `inp.focus()` 真实 focus + 搜索范围扩大至 `[contenteditable]`
-  - 加详细 console.log 便于排查
+### v7.0.0 (2026-10-08)
+- 🔥 **问答题保存修复** — 实地抓包确认真实接口为 `Action=redit_essay_question`（v6 误写为 `edit_essay_question`，这是"主观题输入了但保存不上"的直接原因）；保存以服务器返回 `保存成功` 为准，失败重试 1 次后自动暂停等待人工处理，恢复后重试本题不切题
+- 🔥 **SubjectID 可靠获取** — 三级来源：DOM `data-sid` → `hidS` 题干文本匹配 → `hidS` 按题号索引，取不到时明确报错
+- ✨ **UI 整体重做** — 单悬浮球（可拖拽、位置记忆）+ 单面板，Shadow DOM 完全隔离，浅色主题，四个 Tab（运行/日志/设置/关于）
+- ⏭️ **已答跳过** — 启动时解析 `hidUps` 服务器作答记录，已答题自动跳过（设置里可关）
+- 📈 运行统计：成功/失败/跳过/API 次数/token 用量；日志可导出，配置可导入导出
+- ⌨️ 快捷键 Alt+Q / Alt+W；🛡️ 每次启动显示免责声明，同意后方可使用
+- 🔒 多标签页运行互斥；🧪 设置页"测试 API"按钮
+- 🗑️ 移除 v6 的兜底 AJAX 乱发请求逻辑
 
-### v5.0.0 (2026-06-10)
-- 🔥 **填空题完整键盘事件链** — 诊断证明手动打字触发 `keydown → input → keyup → change`，v4.9 只发了 `input` 和 `change`，字符计数不更新
-  - 新增 `KeyboardEvent('keydown')` → `Event('input')` → `KeyboardEvent('keyup')` → `Event('change')` → `Event('blur')` 完整链
-  - 新增 `focus` + jQuery `triggerHandler('input'/'change'/'blur')` 绕过 isTrusted
-  - 搜索范围扩至 `input:not([type])`（有些填空 input 不带 type 属性）
-  - 填完后直接调 `ajaxSave()` 发保存请求
-  - 视觉反馈：绿色边框 + 浅绿背景
+### v6.x (2026-09-19)
+- 问答题保存接口初版（Action 名抄错，v7 已修）；答题卡跳题多级兜底（`To_Sub` 确认有效）
+- 模型修复（`deepseek-chat`）、判断题同义词匹配、选项范围 A-H、点击后验证选中态
+- 多选先清旧选、切题等待、AI 失败重试、连续 3 题失败暂停
 
-### v4.9.0 (2026-06-10)
-- 🔥 **根本性突破** — 诊断证明 jQuery trigger / MouseEvent / 原生 click 全部被 `e.isTrusted` 拦截
-- 📚 **triggerHandler** — jQuery 的 `$(el).triggerHandler('click')` 直接调用绑定的 handler 函数，完全不经过 DOM 事件系统，`isTrusted` 管不着
-- 🔧 answerStr 改为 `"A,B,C,D"` 逗号分隔格式
-- 🔧 新增 `fillBlank()` 填空题写入逻辑
-- 🔧 AJAX 多处并行尝试 `StudentPaper.ashx` / `Paper.ashx` 等端点
-
-### v4.8.0 — 直接注入 hidUps
-- 更新 hidUps JSON + DOM class + AJAX 三连保存（有视觉但无持久化）
-
-### v4.0-v4.7
-- 悬浮终端、答题卡、题型全覆盖、UEditor 等
+### v4-v5 (2026-06)
+- 填空题键盘事件链 + `FillAnswer()`；jQuery `triggerHandler` 绕过 `isTrusted`；UEditor 支持
